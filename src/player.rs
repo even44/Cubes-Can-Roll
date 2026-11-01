@@ -8,8 +8,13 @@ pub struct Player;
 
 #[derive(Resource, Default)]
 pub struct PlayerStats {
-    move_force: f32,
+    move_toque: f32,
     player_dimensions: Vec3,
+    max_angular_speed: f32
+}
+#[derive(Component, Default)]
+pub struct PlayerState {
+    is_grounded: bool,
 }
 
 pub struct PlayerPlugin;
@@ -18,7 +23,7 @@ impl Plugin for PlayerPlugin {
         app.init_resource::<PlayerInput>()
             .init_resource::<PlayerStats>()
             .add_systems(Startup, spawn_player)
-            .add_systems(Update, move_player);
+            .add_systems(FixedUpdate, (check_grounded, move_player).chain());
     }
 }
 
@@ -29,11 +34,15 @@ pub fn spawn_player(
     mut player_stats: ResMut<PlayerStats>,
 ) {
     player_stats.player_dimensions = vec3(1.0, 1.0, 1.0);
-    player_stats.move_force = 5.0;
+    player_stats.move_toque = 10.0;
+    player_stats.max_angular_speed = 5.0;
 
     commands.spawn((
         Player,
         RigidBody::Dynamic,
+        Friction::new(10.0),
+        PlayerState::default(),
+        MaxAngularSpeed(5.0),
         Collider::cuboid(
             player_stats.player_dimensions.x,
             player_stats.player_dimensions.y,
@@ -52,10 +61,38 @@ pub fn spawn_player(
 pub fn move_player(
     player_input: Res<PlayerInput>,
     player_stats: Res<PlayerStats>,
-    mut forces: Query<Forces, With<Player>>,
+    mut players: Query<(Forces, &PlayerState, &mut MaxAngularSpeed), With<Player>>,
 ) {
-    let move_direction = vec3(player_input.movement.x, 0.0, player_input.movement.y);
-    for mut force in &mut forces {
-        force.apply_force(move_direction * player_stats.move_force);
+    for (mut forces, player_state, mut max_angular_speed) in &mut players {
+
+        if player_input.sprint_pressed{
+            max_angular_speed.0 = player_stats.max_angular_speed * 2.0
+        } else {
+            max_angular_speed.0 = player_stats.max_angular_speed
+        }
+        
+        if player_state.is_grounded {
+            let move_direction = Vec3::new(player_input.movement.x, 0.0, player_input.movement.y);
+            // Torque perpendicular to the movement direction.
+            let torque = Vec3::Y.cross(move_direction) * player_stats.move_toque;
+            forces.apply_torque(torque);
+        }
+    }
+}
+
+pub fn check_grounded(
+    spatial_query: SpatialQuery,
+    mut players: Query<(Entity, &Position, &mut PlayerState), With<Player>>,
+    player_stats: Res<PlayerStats>,
+) {
+    for (entity, position, mut player_state) in &mut players {
+        let filter = SpatialQueryFilter::default().with_excluded_entities([entity]);
+
+        // Player box is 2 units tall, so cast slightly farther than its half-height.
+        let half_extent = Vec3::splat(player_stats.player_dimensions.x / 2.0);
+        let probe_length = half_extent.length() * 1.05;
+        player_state.is_grounded = spatial_query
+            .cast_ray(position.0, Dir3::NEG_Y, probe_length, true, &filter)
+            .is_some();
     }
 }

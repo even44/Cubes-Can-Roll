@@ -1,11 +1,11 @@
-use bevy::{input::mouse::{AccumulatedMouseMotion}, prelude::*};
+use bevy::{input::mouse::AccumulatedMouseMotion, prelude::*};
 
 #[derive(Resource, Default)]
 pub struct PlayerInput {
     pub mouse_delta: Vec2,
     pub movement: Vec2,
     pub jump_pressed: bool,
-    pub sprint_pressed: bool
+    pub sprint_pressed: bool,
 }
 
 pub fn capture_input(
@@ -27,6 +27,8 @@ pub fn capture_input(
     if keys.pressed(KeyCode::KeyD) {
         movement.x += 1.0;
     }
+
+    player_input.sprint_pressed = keys.pressed(KeyCode::ShiftLeft);
 
     player_input.mouse_delta = mouse.delta;
     player_input.movement = movement.normalize_or_zero();
