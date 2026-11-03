@@ -9,8 +9,6 @@ use bevy_skein::SkeinPlugin;
 
 use crate::camera::*;
 use crate::input::*;
-use crate::level::*;
-use crate::player::*;
 
 fn main() {
     App::new()

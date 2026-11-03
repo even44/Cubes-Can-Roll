@@ -1,15 +1,12 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::player::{self, Player};
+use crate::player::Player;
 
+const LEVELS: &[&str] = &["levels/test_level.glb", "levels/test_level_02.glb"];
+const KILL_HEIGHT: f32 = -10.0;
 #[derive(Component)]
 struct LevelEntity;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum LevelId {
-    Default,
-}
 
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
@@ -20,10 +17,10 @@ struct SpawnPoint;
 struct Finish;
 
 #[derive(Resource, Default)]
-struct RequestedLevel(Option<LevelId>);
+struct RequestedLevel(Option<usize>);
 
 #[derive(Resource, Default)]
-struct CurrentLevel(Option<LevelId>);
+struct CurrentLevel(Option<usize>);
 
 pub struct LevelPlugin;
 impl Plugin for LevelPlugin {
@@ -31,14 +28,21 @@ impl Plugin for LevelPlugin {
         app.init_resource::<RequestedLevel>()
             .init_resource::<CurrentLevel>()
             .add_systems(Startup, request_default_level)
-            .add_systems(Update, load_requested_level)
-            .add_systems(Update, place_player_at_spawn)
-            .add_systems(Update, detect_finish);
+            .add_systems(
+                Update,
+                (
+                    place_player_at_spawn,
+                    detect_finish,
+                    restart_level,
+                    load_requested_level,
+                )
+                    .chain(),
+            );
     }
 }
 
 fn request_default_level(mut request: ResMut<RequestedLevel>) {
-    request.0 = Some(LevelId::Default);
+    request.0 = Some(0);
 }
 
 fn load_requested_level(
@@ -52,27 +56,16 @@ fn load_requested_level(
         return;
     };
 
-    if current.0 == Some(next) {
-        return;
-    }
-
     for entity in &old_level_entities {
         commands.entity(entity).despawn();
     }
 
-    match next {
-        LevelId::Default => {
-            // Ground to sit on
-            commands.spawn((
-                LevelEntity,
-                RigidBody::Static,
-                WorldAssetRoot(
-                    asset_server.load(GltfAssetLabel::Scene(0).from_asset("levels/test_level.glb")),
-                ),
-                ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMesh),
-            ));
-        }
-    }
+    commands.spawn((
+        LevelEntity,
+        RigidBody::Static,
+        WorldAssetRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(LEVELS[next]))),
+        ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMesh),
+    ));
 
     current.0 = Some(next);
 }
@@ -104,16 +97,31 @@ fn place_player_at_spawn(
 fn detect_finish(
     finishes: Query<&GlobalTransform, With<Finish>>,
     players: Query<&Position, With<Player>>,
-    mut reached: Local<bool>,
+    current: Res<CurrentLevel>,
+    mut requested: ResMut<RequestedLevel>,
 ) {
+    let Some(index) = current.0 else { return };
     for &position in players {
         for &finish in finishes {
             if position.0.distance(finish.translation()) < 1.0 {
-                if !*reached {
-                    info!("Finish reached!");
-                    *reached = true;
-                }
+                info!("Finish reached!");
+                requested.0 = Some((index + 1) % LEVELS.len());
             }
         }
+    }
+}
+
+fn restart_level(
+    keys: Res<ButtonInput<KeyCode>>,
+    players: Query<&Position, With<Player>>,
+    spawn_points: Query<(), With<SpawnPoint>>,
+    current: Res<CurrentLevel>,
+    mut requested: ResMut<RequestedLevel>,
+) {
+    let fell =
+        !spawn_points.is_empty() && players.iter().any(|position| position.0.y < KILL_HEIGHT);
+
+    if fell || keys.just_pressed(KeyCode::KeyR) {
+        requested.0 = current.0;
     }
 }
