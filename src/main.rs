@@ -1,6 +1,7 @@
 mod camera;
 mod input;
 mod level;
+mod obstacles;
 mod player;
 
 use avian3d::prelude::*;
@@ -18,6 +19,7 @@ fn main() {
         .add_plugins(SkeinPlugin::default())
         .add_plugins(level::LevelPlugin)
         .add_plugins(player::PlayerPlugin)
+        .add_plugins(obstacles::ObstaclesPlugin)
         //Annouce game start
         .add_systems(Startup, hello_game_system)
         // Spawn systems
@@ -36,7 +38,7 @@ fn hello_game_system() {
     println!("Started cubes can roll!")
 }
 
-fn enable_sun_shadows(mut suns: Query<&mut DirectionalLight, Added<DirectionalLight>>){
+fn enable_sun_shadows(mut suns: Query<&mut DirectionalLight, Added<DirectionalLight>>) {
     for mut sun in &mut suns {
         sun.shadow_maps_enabled = true;
     }

@@ -44,6 +44,7 @@ pub fn spawn_player(
         Friction::new(10.0),
         PlayerState::default(),
         MaxAngularSpeed(5.0),
+        CollidingEntities::default(),
         Collider::cuboid(
             player_stats.player_dimensions.x,
             player_stats.player_dimensions.y,
@@ -84,18 +85,10 @@ pub fn move_player(
 }
 
 pub fn check_grounded(
-    spatial_query: SpatialQuery,
-    mut players: Query<(Entity, &Position, &mut PlayerState), With<Player>>,
-    player_stats: Res<PlayerStats>,
+    mut players: Query<(&CollidingEntities, &mut PlayerState), With<Player>>,
 ) {
-    for (entity, position, mut player_state) in &mut players {
-        let filter = SpatialQueryFilter::default().with_excluded_entities([entity]);
-
-        // Player box is 2 units tall, so cast slightly farther than its half-height.
-        let half_extent = Vec3::splat(player_stats.player_dimensions.x / 2.0);
-        let probe_length = half_extent.length() * 1.05;
-        player_state.is_grounded = spatial_query
-            .cast_ray(position.0, Dir3::NEG_Y, probe_length, true, &filter)
-            .is_some();
+    for (colliding, mut player_state) in &mut players {
+        // FUTURE: When triggers or other colliders are added that should not count towards grounded state, filter them out here
+        player_state.is_grounded = !colliding.0.is_empty();
     }
 }
