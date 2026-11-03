@@ -34,8 +34,7 @@ fn load_requested_level(
     mut requested: ResMut<RequestedLevel>,
     mut current: ResMut<CurrentLevel>,
     old_level_entities: Query<Entity, With<LevelEntity>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     let Some(next) = requested.0.take() else {
         return;
@@ -55,10 +54,10 @@ fn load_requested_level(
             commands.spawn((
                 LevelEntity,
                 RigidBody::Static,
-                Collider::cuboid(20.0, 1.0, 20.0),
-                Mesh3d(meshes.add(Cuboid::new(20.0, 1.0, 20.0))),
-                MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
-                Transform::from_xyz(0.0, -0.5, 0.0),
+                WorldAssetRoot(
+                    asset_server.load(GltfAssetLabel::Scene(0).from_asset("levels/test_level.glb")),
+                ),
+                ColliderConstructorHierarchy::new(ColliderConstructor::TrimeshFromMesh),
             ));
         }
     }

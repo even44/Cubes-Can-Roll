@@ -1,7 +1,8 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::input::PlayerInput;
+use crate::{camera::CameraFollowPriority, input::PlayerInput};
+
 
 #[derive(Component)]
 pub struct Player;
@@ -55,6 +56,8 @@ pub fn spawn_player(
         ))),
         MeshMaterial3d(materials.add(Color::srgb_u8(255, 144, 144))),
         Transform::from_xyz(0.0, 0.0, 0.0),
+        CameraFollowPriority(5)
+        
     ));
 }
 
