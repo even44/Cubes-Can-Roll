@@ -24,6 +24,8 @@ fn main() {
         .add_systems(Startup, hello_game_system)
         // Spawn systems
         .add_systems(Startup, spawn_camera)
+        //Lighting
+        .add_systems(Update, enable_sun_shadows)
         //Camera
         .add_systems(Update, follow_target)
         //Input systems
@@ -34,4 +36,10 @@ fn main() {
 
 fn hello_game_system() {
     println!("Started cubes can roll!")
+}
+
+fn enable_sun_shadows(mut suns: Query<&mut DirectionalLight, Added<DirectionalLight>>){
+    for mut sun in &mut suns {
+        sun.shadow_maps_enabled = true;
+    }
 }

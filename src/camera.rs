@@ -1,5 +1,5 @@
 use avian3d::physics_transform::Position;
-use bevy::prelude::*;
+use bevy::{prelude::*, render::view::Tonemapping};
 
 #[derive(Component)]
 pub struct CameraFollowPriority(pub u32);
@@ -19,6 +19,7 @@ pub fn spawn_camera(mut commands: Commands) {
         Camera3d::default(),
         CameraFollow::new(Vec3::new(0.0, 4.0, 7.0)),
         Transform::from_xyz(0.0, 4.0, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Tonemapping::AgX,
     ));
 }
 
