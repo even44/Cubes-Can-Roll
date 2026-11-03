@@ -30,7 +30,6 @@ fn spawn_cube_piles(
             continue;
         }
 
-
         let center = transform.translation();
         let half = transform.scale();
         let mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
@@ -42,7 +41,7 @@ fn spawn_cube_piles(
         let rows = ((half.z * 2.0 / cell) as u32).max(1);
 
         let mut cubes = Vec::with_capacity(pile.count as usize);
-        
+
         for i in 0..pile.count {
             let column = i % columns;
             let row = (i / columns) % rows;
