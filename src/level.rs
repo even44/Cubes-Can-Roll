@@ -1,6 +1,8 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
+use crate::player::{self, Player};
+
 #[derive(Component)]
 struct LevelEntity;
 
@@ -8,6 +10,14 @@ struct LevelEntity;
 enum LevelId {
     Default,
 }
+
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct SpawnPoint;
+
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct Finish;
 
 #[derive(Resource, Default)]
 struct RequestedLevel(Option<LevelId>);
@@ -21,7 +31,9 @@ impl Plugin for LevelPlugin {
         app.init_resource::<RequestedLevel>()
             .init_resource::<CurrentLevel>()
             .add_systems(Startup, request_default_level)
-            .add_systems(Update, load_requested_level);
+            .add_systems(Update, load_requested_level)
+            .add_systems(Update, place_player_at_spawn)
+            .add_systems(Update, detect_finish);
     }
 }
 
@@ -63,4 +75,45 @@ fn load_requested_level(
     }
 
     current.0 = Some(next);
+}
+
+fn place_player_at_spawn(
+    spawns: Query<&GlobalTransform, Added<SpawnPoint>>,
+    mut players: Query<
+        (
+            &mut Position,
+            &mut Rotation,
+            &mut LinearVelocity,
+            &mut AngularVelocity,
+        ),
+        With<Player>,
+    >,
+) {
+    let Some(spawn) = spawns.iter().next() else {
+        return;
+    };
+
+    for (mut position, mut rotation, mut linear, mut angular) in &mut players {
+        position.0 = spawn.translation();
+        *rotation = Rotation::default();
+        linear.0 = Vec3::ZERO;
+        angular.0 = Vec3::ZERO;
+    }
+}
+
+fn detect_finish(
+    finishes: Query<&GlobalTransform, With<Finish>>,
+    players: Query<&Position, With<Player>>,
+    mut reached: Local<bool>,
+) {
+    for &position in players {
+        for &finish in finishes {
+            if position.0.distance(finish.translation()) < 1.0 {
+                if !*reached {
+                    info!("Finish reached!");
+                    *reached = true;
+                }
+            }
+        }
+    }
 }
