@@ -4,7 +4,11 @@ mod level;
 mod obstacles;
 mod player;
 
-use avian3d::prelude::*;
+use avian3d::PhysicsPlugins;
+use avian3d::dynamics::rigid_body::mass_properties::components::ColliderDensity;
+use avian3d::dynamics::rigid_body::mass_properties::components::Mass;
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::diagnostic::LogDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy_skein::SkeinPlugin;
 
@@ -17,6 +21,12 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(PhysicsPlugins::default())
         .add_plugins(SkeinPlugin::default())
+        .register_type::<ColliderDensity>()
+        .register_type::<Mass>()
+        .add_plugins((
+            FrameTimeDiagnosticsPlugin::default(),
+            LogDiagnosticsPlugin::default(),
+        ))
         .add_plugins(level::LevelPlugin)
         .add_plugins(player::PlayerPlugin)
         .add_plugins(obstacles::ObstaclesPlugin)

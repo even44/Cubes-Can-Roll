@@ -17,7 +17,7 @@ impl CameraFollow {
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
-        CameraFollow::new(Vec3::new(0.0, 4.0, 7.0)),
+        CameraFollow::new(Vec3::new(0.0, 3.0, 7.0)),
         Transform::from_xyz(0.0, 4.0, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::AgX,
     ));
@@ -25,7 +25,10 @@ pub fn spawn_camera(mut commands: Commands) {
 
 pub fn follow_target(
     targets: Query<(&CameraFollowPriority, &Position), With<CameraFollowPriority>>,
-    mut camera: Single<(&mut Transform, &CameraFollow), (With<CameraFollow>, Without<CameraFollowPriority>)>,
+    mut camera: Single<
+        (&mut Transform, &CameraFollow),
+        (With<CameraFollow>, Without<CameraFollowPriority>),
+    >,
 ) {
     let (camera_transform, camera_follow) = &mut *camera;
 

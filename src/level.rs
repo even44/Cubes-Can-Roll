@@ -32,7 +32,7 @@ impl Plugin for LevelPlugin {
                 Update,
                 (
                     place_player_at_spawn,
-                    detect_finish,
+                    setup_finish_collider,
                     restart_level,
                     load_requested_level,
                 )
@@ -109,6 +109,42 @@ fn detect_finish(
             }
         }
     }
+}
+
+fn setup_finish_collider(
+    mut commands: Commands,
+    new_colliders: Query<Entity, Added<Collider>>,
+    parents: Query<&ChildOf>,
+    finishes: Query<(), With<Finish>>,
+) {
+    for collider in new_colliders {
+        if parents
+            .iter_ancestors(collider)
+            .any(|e| finishes.contains(e))
+        {
+            info!("finish sensor on {collider}");
+            commands
+                .entity(collider)
+                .insert((Sensor, CollisionEventsEnabled))
+                .observe(on_finish_entered);
+        }
+    }
+}
+
+fn on_finish_entered(
+    event: On<CollisionStart>,
+    players: Query<(), With<Player>>,
+    current: Res<CurrentLevel>,
+    mut requested: ResMut<RequestedLevel>,
+) {
+    let collider2 = event.collider2;
+    info!("Collider2 {collider2}");
+    if !players.contains(event.collider2) {
+        return;
+    }
+    let Some(index) = current.0 else { return };
+    info!("Finish reached!");
+    requested.0 = Some((index + 1) % LEVELS.len())
 }
 
 fn restart_level(
