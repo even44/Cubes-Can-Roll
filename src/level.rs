@@ -5,6 +5,32 @@ use crate::{camera::SKY_COLOR, player::Player};
 
 const LEVELS: &[&str] = &["levels/level_01.glb", "levels/level_02.glb"];
 const KILL_HEIGHT: f32 = -10.0;
+
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LevelPhase {
+    #[default]
+    Playing,
+    Results,
+}
+
+#[derive(PhysicsLayer, Default)]
+pub enum Layer { #[default] Default, Player, Trigger }
+
+#[derive(Message, Debug, Clone, Copy)]
+pub struct LevelFinished {
+    pub index: usize,
+}
+
+#[derive(Message, Debug, Clone, Copy)]
+pub struct LevelLoaded {
+    pub index: usize,
+}
+
+#[derive(Message, Debug, Clone, Copy)]
+pub struct LevelRestarted {
+    pub index: usize,
+}
+
 #[derive(Component)]
 pub struct LevelEntity;
 
@@ -40,7 +66,12 @@ impl Plugin for LevelPlugin {
         app.init_resource::<RequestedLevel>()
             .init_resource::<CurrentLevel>()
             .insert_resource(ClearColor(SKY_COLOR))
+            .add_message::<LevelFinished>()
+            .add_message::<LevelLoaded>()
+            .add_message::<LevelRestarted>()
+            .init_state::<LevelPhase>()
             .add_systems(Startup, request_default_level)
+            .add_systems(OnExit(LevelPhase::Results), advance_to_next_level)
             .add_systems(
                 Update,
                 (
@@ -50,7 +81,7 @@ impl Plugin for LevelPlugin {
                     setup_killzone_collider,
                     remove_nocollision_colliders,
                     remove_preview_colliders,
-                    restart_level,
+                    restart_level.run_if(in_state(LevelPhase::Playing)),
                     load_requested_level,
                 )
                     .chain(),
@@ -89,6 +120,7 @@ fn load_requested_level(
 
 fn place_player_at_spawn(
     spawns: Query<&GlobalTransform, Added<SpawnPoint>>,
+    mut level_loaded: MessageWriter<LevelLoaded>,
     mut players: Query<
         (
             &mut Position,
@@ -98,6 +130,7 @@ fn place_player_at_spawn(
         ),
         With<Player>,
     >,
+    current_level: Res<CurrentLevel>,
 ) {
     let Some(spawn) = spawns.iter().next() else {
         return;
@@ -109,6 +142,8 @@ fn place_player_at_spawn(
         linear.0 = Vec3::ZERO;
         angular.0 = Vec3::ZERO;
     }
+    let Some(index) = current_level.0 else { return };
+    level_loaded.write(LevelLoaded { index });
 }
 
 fn remove_nocollision_colliders(
@@ -157,7 +192,7 @@ fn setup_finish_collider(
             info!("finish sensor on {collider}");
             commands
                 .entity(collider)
-                .insert((Sensor, CollisionEventsEnabled))
+                .insert((Sensor, CollisionEventsEnabled, CollisionLayers::new(Layer::Trigger, LayerMask::ALL)))
                 .observe(on_finish_entered);
         }
     }
@@ -167,16 +202,22 @@ fn on_finish_entered(
     event: On<CollisionStart>,
     players: Query<(), With<Player>>,
     current: Res<CurrentLevel>,
-    mut requested: ResMut<RequestedLevel>,
+    phase: Res<State<LevelPhase>>,
+    mut next: ResMut<NextState<LevelPhase>>,
+    mut finished: MessageWriter<LevelFinished>,
 ) {
+    if *phase.get() != LevelPhase::Playing {
+        return;
+    }
+
     let collider2 = event.collider2;
     info!("Collider2 {collider2}");
     if !players.contains(event.collider2) {
         return;
     }
     let Some(index) = current.0 else { return };
-    info!("Finish reached!");
-    requested.0 = Some((index + 1) % LEVELS.len())
+    finished.write(LevelFinished { index });
+    next.set(LevelPhase::Results);
 }
 
 fn setup_killzone_collider(
@@ -193,7 +234,7 @@ fn setup_killzone_collider(
             info!("killzone sensor on {collider}");
             commands
                 .entity(collider)
-                .insert((Sensor, CollisionEventsEnabled))
+                .insert((Sensor, CollisionEventsEnabled,CollisionLayers::new(Layer::Trigger, LayerMask::ALL)))
                 .observe(on_killzone_entered);
         }
     }
@@ -210,12 +251,15 @@ fn on_killzone_entered(
     players: Query<(), With<Player>>,
     current: Res<CurrentLevel>,
     mut requested: ResMut<RequestedLevel>,
+    mut level_restarted: MessageWriter<LevelRestarted>,
 ) {
     if !players.contains(event.collider2) {
         return;
     }
     info!("You died!");
     requested.0 = current.0;
+    let Some(index) = current.0 else { return };
+    level_restarted.write(LevelRestarted { index });
 }
 
 fn restart_level(
@@ -224,11 +268,20 @@ fn restart_level(
     spawn_points: Query<(), With<SpawnPoint>>,
     current: Res<CurrentLevel>,
     mut requested: ResMut<RequestedLevel>,
+    mut level_restarted: MessageWriter<LevelRestarted>,
 ) {
+    let Some(index) = current.0 else { return };
+
     let fell =
         !spawn_points.is_empty() && players.iter().any(|position| position.0.y < KILL_HEIGHT);
 
     if fell || keys.just_pressed(KeyCode::KeyR) {
         requested.0 = current.0;
+        level_restarted.write(LevelRestarted { index });
     }
+}
+
+fn advance_to_next_level(current: Res<CurrentLevel>, mut requested: ResMut<RequestedLevel>) {
+    let Some(index) = current.0 else { return };
+    requested.0 = Some((index + 1) % LEVELS.len());
 }

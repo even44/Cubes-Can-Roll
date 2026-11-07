@@ -3,12 +3,14 @@ mod input;
 mod level;
 mod obstacles;
 mod player;
+mod timer;
 
 use avian3d::PhysicsPlugins;
 use avian3d::dynamics::rigid_body::Friction;
 use avian3d::dynamics::rigid_body::Restitution;
 use avian3d::dynamics::rigid_body::mass_properties::components::ColliderDensity;
 use avian3d::dynamics::rigid_body::mass_properties::components::Mass;
+use avian3d::schedule::PhysicsSystems;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::diagnostic::LogDiagnosticsPlugin;
 use bevy::prelude::*;
@@ -32,6 +34,7 @@ fn main() {
             LogDiagnosticsPlugin::default(),
         ))
         .add_plugins(level::LevelPlugin)
+        .add_plugins(timer::LevelTimerPlugin)
         .add_plugins(player::PlayerPlugin)
         .add_plugins(obstacles::ObstaclesPlugin)
         //Annouce game start
@@ -41,7 +44,13 @@ fn main() {
         //Lighting
         .add_systems(Update, set_sun_settings)
         //Camera
-        .add_systems(Update, follow_target)
+        .add_systems(Update, grab_cursor)
+        .add_systems(
+            PostUpdate,
+            orbit_target
+                .after(PhysicsSystems::Writeback)
+                .before(TransformSystems::Propagate),
+        )
         //Input systems
         .add_systems(Update, capture_input)
         // Start game

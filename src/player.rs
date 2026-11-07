@@ -1,7 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::{camera::CameraFollowPriority, input::PlayerInput};
+use crate::{camera::{CameraFollowPriority, OrbitCamera}, input::PlayerInput, level::{Layer, LevelPhase}};
 
 #[derive(Component)]
 pub struct Player;
@@ -23,7 +23,7 @@ impl Plugin for PlayerPlugin {
         app.init_resource::<PlayerInput>()
             .init_resource::<PlayerStats>()
             .add_systems(Startup, spawn_player)
-            .add_systems(FixedUpdate, (check_grounded, move_player).chain());
+            .add_systems(FixedUpdate, (check_grounded, move_player.run_if(in_state(LevelPhase::Playing))).chain());
     }
 }
 
@@ -58,6 +58,7 @@ pub fn spawn_player(
         MeshMaterial3d(materials.add(Color::srgb_u8(240, 240, 235))),
         Transform::from_xyz(0.0, 0.0, 0.0),
         CameraFollowPriority(5),
+        CollisionLayers::new(Layer::Player, LayerMask::ALL)
     ));
 }
 
@@ -65,6 +66,7 @@ pub fn move_player(
     player_input: Res<PlayerInput>,
     player_stats: Res<PlayerStats>,
     mut players: Query<(Forces, &PlayerState, &mut MaxAngularSpeed), With<Player>>,
+    camera: Single<&OrbitCamera>
 ) {
     for (mut forces, player_state, mut max_angular_speed) in &mut players {
         if player_input.sprint_pressed {
@@ -75,6 +77,7 @@ pub fn move_player(
 
         if player_state.is_grounded {
             let move_direction = Vec3::new(player_input.movement.x, 0.0, player_input.movement.y);
+            let move_direction = Quat::from_rotation_y(camera.yaw) * move_direction;
             // Torque perpendicular to the movement direction.
             let torque = Vec3::Y.cross(move_direction) * player_stats.move_toque;
             forces.apply_torque(torque);
