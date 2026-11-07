@@ -5,6 +5,8 @@ mod obstacles;
 mod player;
 
 use avian3d::PhysicsPlugins;
+use avian3d::dynamics::rigid_body::Friction;
+use avian3d::dynamics::rigid_body::Restitution;
 use avian3d::dynamics::rigid_body::mass_properties::components::ColliderDensity;
 use avian3d::dynamics::rigid_body::mass_properties::components::Mass;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
@@ -23,6 +25,8 @@ fn main() {
         .add_plugins(SkeinPlugin::default())
         .register_type::<ColliderDensity>()
         .register_type::<Mass>()
+        .register_type::<Restitution>()
+        .register_type::<Friction>()
         .add_plugins((
             FrameTimeDiagnosticsPlugin::default(),
             LogDiagnosticsPlugin::default(),
@@ -35,7 +39,7 @@ fn main() {
         // Spawn systems
         .add_systems(Startup, spawn_camera)
         //Lighting
-        .add_systems(Update, enable_sun_shadows)
+        .add_systems(Update, set_sun_settings)
         //Camera
         .add_systems(Update, follow_target)
         //Input systems
@@ -48,8 +52,9 @@ fn hello_game_system() {
     println!("Started cubes can roll!")
 }
 
-fn enable_sun_shadows(mut suns: Query<&mut DirectionalLight, Added<DirectionalLight>>) {
+fn set_sun_settings(mut suns: Query<&mut DirectionalLight, Added<DirectionalLight>>) {
     for mut sun in &mut suns {
         sun.shadow_maps_enabled = true;
+        sun.illuminance = 10_000.0
     }
 }

@@ -1,6 +1,8 @@
 use avian3d::physics_transform::Position;
 use bevy::{prelude::*, render::view::Tonemapping};
 
+pub const SKY_COLOR: Color = Color::srgb(0.62, 0.78, 0.93);
+
 #[derive(Component)]
 pub struct CameraFollowPriority(pub u32);
 
@@ -17,9 +19,21 @@ impl CameraFollow {
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
-        CameraFollow::new(Vec3::new(0.0, 3.0, 7.0)),
+        CameraFollow::new(Vec3::new(0.0, 2.0, 6.0)),
         Transform::from_xyz(0.0, 4.0, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::AgX,
+        Projection::Perspective(PerspectiveProjection {
+            fov: 45f32.to_radians(),
+            ..default()
+        }),
+        DistanceFog {
+            color: SKY_COLOR,
+            falloff: FogFalloff::Linear {
+                start: 60.0,
+                end: 180.0,
+            },
+            ..default()
+        },
     ));
 }
 

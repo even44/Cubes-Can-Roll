@@ -55,7 +55,7 @@ pub fn spawn_player(
             player_stats.player_dimensions.y,
             player_stats.player_dimensions.z,
         ))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(255, 144, 144))),
+        MeshMaterial3d(materials.add(Color::srgb_u8(240, 240, 235))),
         Transform::from_xyz(0.0, 0.0, 0.0),
         CameraFollowPriority(5),
     ));

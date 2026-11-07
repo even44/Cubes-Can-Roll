@@ -1,7 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::player::Player;
+use crate::{camera::SKY_COLOR, player::Player};
 
 const LEVELS: &[&str] = &["levels/test_level.glb", "levels/test_level_02.glb"];
 const KILL_HEIGHT: f32 = -10.0;
@@ -16,6 +16,18 @@ struct SpawnPoint;
 #[reflect(Component)]
 struct Finish;
 
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct NoCollision;
+
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct KillZone;
+
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct KitPreview;
+
 #[derive(Resource, Default)]
 struct RequestedLevel(Option<usize>);
 
@@ -27,12 +39,17 @@ impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RequestedLevel>()
             .init_resource::<CurrentLevel>()
+            .insert_resource(ClearColor(SKY_COLOR))
             .add_systems(Startup, request_default_level)
             .add_systems(
                 Update,
                 (
                     place_player_at_spawn,
+                    hide_kit_previews,
                     setup_finish_collider,
+                    setup_killzone_collider,
+                    remove_nocollision_colliders,
+                    remove_preview_colliders,
                     restart_level,
                     load_requested_level,
                 )
@@ -94,19 +111,34 @@ fn place_player_at_spawn(
     }
 }
 
-fn detect_finish(
-    finishes: Query<&GlobalTransform, With<Finish>>,
-    players: Query<&Position, With<Player>>,
-    current: Res<CurrentLevel>,
-    mut requested: ResMut<RequestedLevel>,
+fn remove_nocollision_colliders(
+    mut commands: Commands,
+    new_colliders: Query<Entity, Added<Collider>>,
+    parents: Query<&ChildOf>,
+    no_collisions: Query<(), With<NoCollision>>,
 ) {
-    let Some(index) = current.0 else { return };
-    for &position in players {
-        for &finish in finishes {
-            if position.0.distance(finish.translation()) < 1.0 {
-                info!("Finish reached!");
-                requested.0 = Some((index + 1) % LEVELS.len());
-            }
+    for collider in new_colliders {
+        if parents
+            .iter_ancestors(collider)
+            .any(|e| no_collisions.contains(e))
+        {
+            commands.entity(collider).remove::<Collider>();
+        }
+    }
+}
+
+fn remove_preview_colliders(
+    mut commands: Commands,
+    new_colliders: Query<Entity, Added<Collider>>,
+    parents: Query<&ChildOf>,
+    kit_previews: Query<(), With<KitPreview>>,
+) {
+    for collider in new_colliders {
+        if parents
+            .iter_ancestors(collider)
+            .any(|e| kit_previews.contains(e))
+        {
+            commands.entity(collider).remove::<Collider>();
         }
     }
 }
@@ -145,6 +177,45 @@ fn on_finish_entered(
     let Some(index) = current.0 else { return };
     info!("Finish reached!");
     requested.0 = Some((index + 1) % LEVELS.len())
+}
+
+fn setup_killzone_collider(
+    mut commands: Commands,
+    new_colliders: Query<Entity, Added<Collider>>,
+    parents: Query<&ChildOf>,
+    killzones: Query<(), With<KillZone>>,
+) {
+    for collider in new_colliders {
+        if parents
+            .iter_ancestors(collider)
+            .any(|e| killzones.contains(e))
+        {
+            info!("killzone sensor on {collider}");
+            commands
+                .entity(collider)
+                .insert((Sensor, CollisionEventsEnabled))
+                .observe(on_killzone_entered);
+        }
+    }
+}
+
+fn hide_kit_previews(mut commands: Commands, previews: Query<Entity, Added<KitPreview>>) {
+    for preview in previews {
+        commands.entity(preview).insert(Visibility::Hidden);
+    }
+}
+
+fn on_killzone_entered(
+    event: On<CollisionStart>,
+    players: Query<(), With<Player>>,
+    current: Res<CurrentLevel>,
+    mut requested: ResMut<RequestedLevel>,
+) {
+    if !players.contains(event.collider2) {
+        return;
+    }
+    info!("You died!");
+    requested.0 = current.0;
 }
 
 fn restart_level(
