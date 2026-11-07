@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use crate::{camera::SKY_COLOR, player::Player};
 
-const LEVELS: &[&str] = &["levels/test_level.glb", "levels/test_level_02.glb"];
+const LEVELS: &[&str] = &["levels/level_01.glb", "levels/level_02.glb"];
 const KILL_HEIGHT: f32 = -10.0;
 #[derive(Component)]
 pub struct LevelEntity;

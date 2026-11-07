@@ -22,6 +22,8 @@ struct CubePile {
 struct Spinner {
     speed: f32,
     arms: u32,
+    #[reflect(default = "return_spinner_default_axis")]
+    axis: Vec3,
 }
 
 pub struct ObstaclesPlugin;
@@ -68,7 +70,7 @@ fn spawn_cube_piles(
                 wanted.min(capacity)
             }
         };
-        
+
         let mut cubes = Vec::with_capacity(count as usize);
 
         let grid_start = Vec3::new(
@@ -76,7 +78,7 @@ fn spawn_cube_piles(
             -half.y,
             -(rows as f32) * cell / 2.0,
         );
-        
+
         for i in 0..count {
             let column = i % columns;
             let row = (i / columns) % rows;
@@ -119,14 +121,20 @@ fn spawn_spinners(
         let length = ((scale.x - radius) * 2.0).max(0.0);
         let mesh = meshes.add(Capsule3d::new(radius, length));
         let material = materials.add(Color::srgb(0.8, 0.2, 0.2));
+        let mut axis = spinner.axis.normalize_or_zero();
+        if axis == Vec3::ZERO {
+            warn!("Spinner with axis Vec3::ZERO defaulting to Vec3::Y");
+            axis = Vec3::Y
+        }
+        let spawn_rotation = rotation * Quat::from_rotation_arc(Vec3::Y, axis);
 
         commands
             .spawn((
                 LevelEntity,
                 RigidBody::Kinematic,
-                AngularVelocity(Vec3::Y * spinner.speed),
+                AngularVelocity((spawn_rotation * Vec3::Y) * spinner.speed),
                 Friction::ZERO.with_combine_rule(CoefficientCombine::Min),
-                Transform::from_translation(translation).with_rotation(rotation),
+                Transform::from_translation(translation).with_rotation(spawn_rotation),
                 Visibility::default(),
             ))
             .with_children(|parent| {
@@ -144,4 +152,8 @@ fn spawn_spinners(
                 }
             });
     }
+}
+
+fn return_spinner_default_axis() -> Vec3 {
+    Vec3::Y
 }
