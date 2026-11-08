@@ -1,7 +1,11 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::{level::LevelEntity, player::Player};
+use crate::{
+    level::{Layer, LevelEntity},
+    player::Player,
+    signals::Active,
+};
 
 #[derive(Reflect, Debug)]
 enum CubePileMode {
@@ -34,12 +38,26 @@ struct Bouncer {
     up: f32, // extra upward pop, e.g. 2.0
 }
 
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct Mover {
+    offset: Vec3, // world units, Y is up, e.g. (0, 3, 0)
+    speed: f32,
+}
+
+#[derive(Component)]
+struct MoverHome(Vec3);
+
+
+
 pub struct ObstaclesPlugin;
 impl Plugin for ObstaclesPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, spawn_cube_piles)
             .add_systems(Update, spawn_spinners)
-            .add_systems(Update, setup_bounce_observer);
+            .add_systems(Update, setup_bounce_observer)
+            .add_systems(Update, setup_movers)
+            .add_systems(FixedUpdate, drive_movers);
     }
 }
 
@@ -151,9 +169,9 @@ fn spawn_spinners(
                     let angle = std::f32::consts::PI * i as f32 / spinner.arms.max(1) as f32;
                     parent.spawn((
                         Collider::capsule(radius, length),
-                        Bouncer{
+                        Bouncer {
                             impulse: 8.0,
-                            up: 1.0
+                            up: 1.0,
                         },
                         Mesh3d(mesh.clone()),
                         MeshMaterial3d(material.clone()),
@@ -167,6 +185,14 @@ fn spawn_spinners(
     }
 }
 
+fn setup_movers(mut commands: Commands, movers: Query<(Entity, &GlobalTransform), Added<Mover>>) {
+    for (entity, transform) in &movers {
+        commands
+            .entity(entity)
+            .insert((RigidBody::Kinematic, MoverHome(transform.translation())));
+    }
+}
+
 fn setup_bounce_observer(
     mut commands: Commands,
     new_colliders: Query<Entity, Added<Collider>>,
@@ -177,7 +203,9 @@ fn setup_bounce_observer(
     // children of the entity that carries Bouncer (or on it directly).
     for collider in new_colliders {
         if bouncers.contains(collider)
-            || parents.iter_ancestors(collider).any(|e| bouncers.contains(e))
+            || parents
+                .iter_ancestors(collider)
+                .any(|e| bouncers.contains(e))
         {
             info!("bouncer on {collider}");
             commands
@@ -185,6 +213,33 @@ fn setup_bounce_observer(
                 .insert(CollisionEventsEnabled)
                 .observe(on_bouncer_hit);
         }
+    }
+}
+
+
+
+fn drive_movers(
+    time: Res<Time>,
+    active: Query<&Active>,
+    parents: Query<&ChildOf>,
+    mut movers: Query<(Entity, &Mover, &MoverHome, &Position, &mut LinearVelocity)>,
+) {
+    for (entity, mover, home, position, mut velocity) in &mut movers {
+        let is_active = parents
+            .iter_ancestors(entity)
+            .find_map(|e| active.get(e).ok())
+            .is_some_and(|a| a.0);
+
+        let target = if is_active {
+            home.0 + mover.offset
+        } else {
+            home.0
+        };
+        let to_target = target - position.0;
+
+        // Never go further than the remaining distance in one step.
+        let max_speed = mover.speed.min(to_target.length() / time.delta_secs());
+        velocity.0 = to_target.normalize_or_zero() * max_speed;
     }
 }
 

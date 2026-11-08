@@ -4,6 +4,7 @@ mod level;
 mod obstacles;
 mod player;
 mod timer;
+mod signals;
 
 use avian3d::PhysicsPlugins;
 use avian3d::dynamics::rigid_body::Friction;
@@ -37,6 +38,7 @@ fn main() {
         .add_plugins(timer::LevelTimerPlugin)
         .add_plugins(player::PlayerPlugin)
         .add_plugins(obstacles::ObstaclesPlugin)
+        .add_plugins(signals::SignalsPlugin)
         //Annouce game start
         .add_systems(Startup, hello_game_system)
         // Spawn systems

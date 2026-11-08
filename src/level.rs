@@ -3,7 +3,8 @@ use bevy::prelude::*;
 
 use crate::{camera::SKY_COLOR, player::Player};
 
-const LEVELS: &[&str] = &["levels/level_01.glb", "levels/level_02.glb", "levels/level_03.glb", "levels/level_04.glb", "levels/level_05.glb", "levels/level_06.glb"];
+//const LEVELS: &[&str] = &["levels/level_01.glb", "levels/level_02.glb", "levels/level_03.glb", "levels/level_04.glb", "levels/level_05.glb", "levels/level_06.glb"];
+const LEVELS: &[&str] = &["levels/test_level.glb"];
 const KILL_HEIGHT: f32 = -10.0;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
