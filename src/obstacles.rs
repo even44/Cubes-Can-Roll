@@ -1,7 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::level::LevelEntity;
+use crate::{level::LevelEntity, player::Player};
 
 #[derive(Reflect, Debug)]
 enum CubePileMode {
@@ -26,11 +26,20 @@ struct Spinner {
     axis: Vec3,
 }
 
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+struct Bouncer {
+    impulse: f32, // fixed kick, e.g. 8.0
+    #[reflect(default)]
+    up: f32, // extra upward pop, e.g. 2.0
+}
+
 pub struct ObstaclesPlugin;
 impl Plugin for ObstaclesPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, spawn_cube_piles)
-            .add_systems(Update, spawn_spinners);
+            .add_systems(Update, spawn_spinners)
+            .add_systems(Update, setup_bounce_observer);
     }
 }
 
@@ -142,6 +151,10 @@ fn spawn_spinners(
                     let angle = std::f32::consts::PI * i as f32 / spinner.arms.max(1) as f32;
                     parent.spawn((
                         Collider::capsule(radius, length),
+                        Bouncer{
+                            impulse: 8.0,
+                            up: 1.0
+                        },
                         Mesh3d(mesh.clone()),
                         MeshMaterial3d(material.clone()),
                         Transform::from_rotation(
@@ -152,6 +165,64 @@ fn spawn_spinners(
                 }
             });
     }
+}
+
+fn setup_bounce_observer(
+    mut commands: Commands,
+    new_colliders: Query<Entity, Added<Collider>>,
+    parents: Query<&ChildOf>,
+    bouncers: Query<(), With<Bouncer>>,
+) {
+    // Colliders come from ColliderConstructorHierarchy, so they live on mesh
+    // children of the entity that carries Bouncer (or on it directly).
+    for collider in new_colliders {
+        if bouncers.contains(collider)
+            || parents.iter_ancestors(collider).any(|e| bouncers.contains(e))
+        {
+            info!("bouncer on {collider}");
+            commands
+                .entity(collider)
+                .insert(CollisionEventsEnabled)
+                .observe(on_bouncer_hit);
+        }
+    }
+}
+
+fn on_bouncer_hit(
+    event: On<CollisionStart>,
+    collisions: Collisions,
+    bouncers: Query<&Bouncer>,
+    parents: Query<&ChildOf>,
+    mut players: Query<Forces, With<Player>>,
+) {
+    let bouncer_entity = event.collider1; // the observer's target
+    let player_entity = event.collider2;
+
+    let Ok(mut forces) = players.get_mut(player_entity) else {
+        return;
+    };
+    // Bouncer sits on the collider itself or on one of its ancestors.
+    let Some(bouncer) = std::iter::once(bouncer_entity)
+        .chain(parents.iter_ancestors(bouncer_entity))
+        .find_map(|e| bouncers.get(e).ok())
+    else {
+        return;
+    };
+    let Some(pair) = collisions.get(bouncer_entity, player_entity) else {
+        return;
+    };
+    let Some(manifold) = pair.manifolds.first() else {
+        return;
+    };
+
+    // Manifold normal points collider1 -> collider2; we want bouncer -> player.
+    let normal = if pair.collider1 == bouncer_entity {
+        manifold.normal
+    } else {
+        -manifold.normal
+    };
+
+    forces.apply_linear_impulse(normal * bouncer.impulse + Vec3::Y * bouncer.up);
 }
 
 fn return_spinner_default_axis() -> Vec3 {
